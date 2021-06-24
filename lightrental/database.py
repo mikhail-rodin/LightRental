@@ -1,0 +1,1 @@
+from PyQt5.QtSql import QSqlQuery, QSqlDatabase

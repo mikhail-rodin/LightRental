@@ -1,0 +1,12 @@
+docs/build
+
+__pycache__
+*.pyc
+.*.pyc
+
+.DS_Store
+.DS_Store?
+._*
+.Trashes
+
+.vscode

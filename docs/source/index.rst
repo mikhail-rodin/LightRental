@@ -7,9 +7,7 @@ Welcome to LightRental's documentation!
 =======================================
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
-
+   gui_classes
 
 
 Indices and tables

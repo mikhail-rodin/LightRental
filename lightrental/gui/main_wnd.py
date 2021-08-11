@@ -1,5 +1,6 @@
 from PyQt5.QtWidgets import QMainWindow, QWidget, QHBoxLayout
-from .checkinout_frm import CheckInFrm
+from .checkinout_frm import CheckInFrm, CheckOutFrm
+from .inventory_frm import InventoryFrm
 
 class MainWnd(QMainWindow):
     def __init__(self) -> None:
@@ -9,6 +10,11 @@ class MainWnd(QMainWindow):
         self.main_widget = QWidget() # central widget of MainWnd's implicit layout
         layout = QHBoxLayout(self.main_widget)
         # our layout resides inside mainWidget => it'll be the parent
-        checkin_frm = CheckInFrm(self.main_widget)
+        checkin_frm = CheckInFrm()
+        checkout_frm = CheckOutFrm()
+        inventory_frm = InventoryFrm()
         layout.addWidget(checkin_frm)
+        layout.addWidget(inventory_frm)
+        layout.addWidget(checkout_frm)
         self.setCentralWidget(self.main_widget)
+        self.setWindowTitle("LightRental")

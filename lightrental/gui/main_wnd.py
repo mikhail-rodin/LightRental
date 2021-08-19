@@ -9,8 +9,19 @@ from .checkinout_frm import CheckInFrm, CheckOutFrm
 from .inventory_frm import InventoryFrm
 
 class MainWnd(QMainWindow):
-    def __init__(self) -> None:
+    def __init__(self, model) -> None:
+        """Construct a GUI main window for viewing
+        and editing the provided model.
+
+        Only one model instance can be used during a UI session
+        (session = while main window event loop is running),
+        so it is provided to the constructor.
+
+        :param model: model to be viewed/edited in UI
+        :type model: InventoryModel class
+        """
         super(MainWnd, self).__init__()
+        self.model = model
         self._initUI()
         self._init_actions()
         self._init_menu_bar()
@@ -20,7 +31,7 @@ class MainWnd(QMainWindow):
         # our layout resides inside mainWidget => it'll be the parent
         self.checkin_frm = CheckInFrm()
         self.checkout_frm = CheckOutFrm()
-        self.inventory_frm = InventoryFrm()
+        self.inventory_frm = InventoryFrm(self.model)
         layout.addWidget(self.checkin_frm)
         layout.addWidget(self.inventory_frm)
         layout.addWidget(self.checkout_frm)

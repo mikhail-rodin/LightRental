@@ -28,9 +28,10 @@ class InventoryView(QWidget):
     This class abstracts away the actual view widgets and 
     their directly related editing controls from the inventory form. 
     """
-    def __init__(self, parent=None) -> None:
+    def __init__(self, model, parent=None) -> None:
         super().__init__(parent)
         self.init_widgets()
+        self.model = model
     def init_widgets(self):
         #buttons related to viewer widget
         self.layout = QGridLayout()

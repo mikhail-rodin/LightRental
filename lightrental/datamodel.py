@@ -7,8 +7,8 @@ without directly calling database.py functions and
 worrying about integrity.
 """
 
-from PyQt5.QtWidgets import (
-    QRelationalTableModel
+from PyQt5.QtSql import (
+    QSqlRelationalTableModel
 )
 from collections import namedtuple
 # uses InventoryDB interface
@@ -29,7 +29,7 @@ InventoryCategory = namedtuple(
     defaults=['']    # notes='' - applied right to left
 )
 
-class InventoryModel(QRelationalTableModel):
+class InventoryModel(QSqlRelationalTableModel):
     def __init__(self, db) -> None:
         """Construct a Qt model that uses a given InventoryDB
 

@@ -6,23 +6,116 @@ the program need not execute SQL queries - they call
 methods of a class provided here. Moreover, they
 shouldn't, as otherwise they can mess up the
 checkin/checkout history.
+
+Includes Item, SKU, Customer, Category, Checkin, Checkout
+dataclasses that each represent a record from the namesake table. 
+Their member fields can hold corresponding SQL DB
+column names, indices and relations (note that pretty much all
+SQL metadata is column-related - it's a relational DB, after all)
+and the actual data. 
 """
 
+import collections
 from PyQt5.QtSql import (
     QSqlQuery, 
     QSqlDatabase,
     QSqlRelation
 )
 from os import path
+from dataclasses import dataclass
+from typing import Union
 
-CHECK_IN_OUT_COLUMNS_SQL = ("id PRIMARY KEY AUTOINCREMENT,"
-                "time TEXT NOT NULL,"
-                "inv_nr INTEGER NOT NULL,"
-                "customer_id INTEGER NOT NULL,"
-                "FOREIGN KEY (inv_nr) REFERENCES inventory (inv_no)"
-                " ON DELETE RESTRICT ON UPDATE CASCADE,"
-                "FOREIGN KEY (customer_id) REFERENCES customers (id)"
-                " ON DELETE RESTRICT ON UPDATE CASCADE,")
+@dataclass
+class Relation:
+    table: str # where 'index' and 'col' are
+    index: str # foreign key index
+    col: str # what's shown instead of index
+
+@dataclass
+class Column:
+    name: str
+    index: int
+    sql_type: str 
+    sql_col_constraint: str = ''
+    relation: Relation = None
+
+@dataclass
+class Item:
+    table: str
+    inv_nr: Union[int, Column]
+    SKU: Union[int, Column]
+    category_id: Union[int, Column]
+    img_path: Union[str, Column]
+    notes: Union[str, Column]
+
+@dataclass
+class SKU:
+    table: str
+    SKU: Union[int, Column]
+    name: Union[str, Column]
+    notes: Union[str, Column]
+
+@dataclass
+class Customer:
+    table: str
+    id: Union[int, Column]
+    name: Union[str, Column]
+    contacts: Union[str, Column]
+    notes: Union[str, Column]
+
+@dataclass
+class CheckInOut:
+    table: str
+    id: Union[int, Column]
+    time: Union[str, Column]
+    inv_nr: Union[int, Column]
+    customer_id: Union[int, Column]
+
+@dataclass 
+class InventoryMetadata:
+    items: Item
+    SKUs: SKU
+    customers: Customer
+    checkins: CheckInOut
+    checkouts: CheckInOut
+
+db_metadata = InventoryMetadata(
+    items=Item(
+        table='inventory',
+        inv_nr=Column('inv_nr', 0),
+        SKU=Column('sku', 1, Relation("skus", "sku", "name")),
+        category_id=Column('category', 2, Relation("categories", "id", "name")),
+        img_path=Column('img_path', 3)
+    ),
+    SKUs=SKU(
+        table='skus',
+        SKU=Column('sku', 0),
+        name=Column('name', 1),
+        notes=Column('notes', 2)
+    ),
+    customers=Customer(
+        table='customers',
+        id=Column('id', 0),
+        name=Column('name', 1),
+        contacts=Column('contacts', 2),
+        notes=Column('notes', 3)
+    ),
+    checkins=CheckInOut(
+        table='checkin',
+        id=Column('id', 0),
+        time=Column('time', 1),
+        inv_nr=Column('inv_nr', 1, Relation("inventory", 'inv_nr', 'notes')),
+        customer_id=Column('customer_id', 2)
+    ),
+    checkouts=CheckInOut(
+        table='checkout',
+        id=Column('id', 0),
+        name=Column('name', 1),
+        customer_id=Column('customer_id', 2)
+    )
+)
+
+
 
 def open_db(filepath) -> str:
     """Opens an SQLite DB.
@@ -40,7 +133,7 @@ def open_db(filepath) -> str:
     else:
         return ''
 
-def create_db(filepath) -> str:
+def create_db(filepath: str, md: InventoryMetadata = db_metadata) -> str:
     """Creates an SQLite DB with a structure needed for LightRental.
 
     :param filepath: path and name for the new DB; if a DB exists,
@@ -49,6 +142,14 @@ def create_db(filepath) -> str:
     :return: connection name (QtSQL connectionName attribute), empty if unsuccessful.
     :rtype: str
     """
+    CHECK_IN_OUT_COLUMNS_SQL = ("id PRIMARY KEY AUTOINCREMENT,"
+                "time TEXT NOT NULL,"
+                "customer_id INTEGER NOT NULL,"
+                "inv_nr INTEGER NOT NULL,"
+                "FOREIGN KEY (inv_nr) REFERENCES inventory (inv_nr)"
+                " ON DELETE RESTRICT ON UPDATE CASCADE,"
+                "FOREIGN KEY (customer_id) REFERENCES customers (id)"
+                " ON DELETE RESTRICT ON UPDATE CASCADE,")
     name = path.basename(filepath)
     if path.exists(filepath):
         print(f"{name} already exists. \
@@ -58,59 +159,69 @@ def create_db(filepath) -> str:
         db = QSqlDatabase.addDatabase("QSQLITE", connectionName=name)
         db.setDatabaseName(filepath)
         if db.open():
-            query = QSqlQuery(db)
-            query.exec(
-                "PRAGMA foreign_keys = true"
-            )
-            query.exec(
-                "CREATE TABLE inventory ("
-                "inv_nr INTEGER PRIMARY KEY ON CONFLICT ROLLBACK,"
-                "sku INTEGER NOT NULL,"
-                "category INTEGER NOT NULL,"
-                "img_path TEXT,"
-                "notes TEXT,"
-                "FOREIGN KEY (sku) REFERENCES skus (sku)"
-                " ON DELETE RESTRICT ON UPDATE CASCADE,"
-                "FOREIGN KEY (category) REFERENCES categories (id)"
-                " ON DELETE RESTRICT ON UPDATE CASCADE,"
-                ")"
-            )
-            query.exec(
-                "CREATE TABLE skus ("
-                "sku INTEGER PRIMARY KEY,"
-                "name TEXT NOT NULL,"
-                "notes TEXT"
-                ")"
-            )
-            query.exec(
-                "CREATE TABLE categories ("
-                "id INTEGER PRIMARY KEY,"
-                "name TEXT NOT NULL,"
-                "notes TEXT"
-                ")"
-            )
-            query.exec(
-                "CREATE TABLE customers ("
-                "id PRIMARY KEY AUTOINCREMENT,"
-                "name TEXT NOT NULL,"
-                "contacts TEXT NOT NULL,"
-                "notes TEXT"
-                ")"
-            )
-            query.exec(
-                "CREATE TABLE checkin ("
-                + CHECK_IN_OUT_COLUMNS_SQL +
-                ")"
-            )
-            query.exec(
-                "CREATE TABLE checkout ("
-                + CHECK_IN_OUT_COLUMNS_SQL +
-                ")"
-            )
-            query.finish()
-            return name
-        else:
-            return ""
+            if db.transaction():
+                query = QSqlQuery(db)
+                query.exec(
+                    "PRAGMA foreign_keys = true"
+                )
+                query.exec(
+                    "CREATE TABLE inventory ("
+                    "inv_nr INTEGER PRIMARY KEY ON CONFLICT ROLLBACK,"
+                    "sku INTEGER NOT NULL,"
+                    "category INTEGER NOT NULL,"
+                    "img_path TEXT,"
+                    "notes TEXT,"
+                    "FOREIGN KEY (sku) REFERENCES skus (sku)"
+                    " ON DELETE RESTRICT ON UPDATE CASCADE,"
+                    "FOREIGN KEY (category) REFERENCES categories (id)"
+                    " ON DELETE RESTRICT ON UPDATE CASCADE,"
+                    ")"
+                )
+                query.exec(
+                    "CREATE TABLE skus ("
+                    "sku INTEGER PRIMARY KEY,"
+                    "name TEXT NOT NULL,"
+                    "notes TEXT"
+                    ")"
+                )
+                query.exec(
+                    "CREATE TABLE categories ("
+                    "id INTEGER PRIMARY KEY,"
+                    "name TEXT NOT NULL,"
+                    "notes TEXT"
+                    ")"
+                )
+                query.exec(
+                    "CREATE TABLE customers ("
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    "name TEXT NOT NULL,"
+                    "contacts TEXT NOT NULL,"
+                    "notes TEXT"
+                    ")"
+                )
+                query.exec(
+                    "CREATE TABLE checkin ("
+                    + CHECK_IN_OUT_COLUMNS_SQL +
+                    ")"
+                )
+                for table_name in ['customers', 'checkin', 'checkout']:
+                    del_trigger_query = (
+                        f"CREATE TRIGGER {table_name}_prevent_deletion "
+                        f"BEFORE DELETE ON {table_name} "
+                        "BEGIN"
+                        f"SELECT RAISE(ABORT, '{table_name} records cannot be deleted')"
+                        "END;"
+                    )
+                    query.exec(del_trigger_query)
+                    query.finish()
+                query.exec(
+                    "CREATE TABLE checkout ("
+                    + CHECK_IN_OUT_COLUMNS_SQL +
+                    ")"
+                )
+                db.commit()
+                return name
+        return ""
 
 class InventoryDB:
     """A database service that abstracts away the SQL under
@@ -127,7 +238,7 @@ class InventoryDB:
     be ever edited or updated. One can insert records to those
     table only using this class' methods.
     """
-    def __init__(self, connectionName) -> None:
+    def __init__(self, connectionName='') -> None:
         self.conn_name = connectionName
         self.inv_tbl_name = 'inventory'
         self.SKU_tbl_name = 'SKUs'
@@ -144,9 +255,9 @@ class InventoryDB:
     def customer_table_name(self):
         return self.customer_tbl_name
     def SKU_relation(self):
-        return self.index_SKU, QSqlRelation("SKUs", "SKU", "name")
+        pass
     def category_relation(self):
-        return self.index_category, QSqlRelation("categories", "id", "name")
+        return self.index_category, 
     def add_customer(self, id, name, contacts, notes=''):
         query = self._fresh_QSqlQuery()
         query.prepare(
@@ -205,7 +316,14 @@ class InventoryDB:
         query.bindValue(":name", name)
         query.bindValue(":notes", notes)
         return query.exec()
-    def checkin(self, nr):
+    def checkin(self, nr, customer_id):
+        query = self._fresh_QSqlQuery()
+        query.prepare(
+            "INSERT INTO checkin (inv_nr, customer_id, time) "
+            "VALUES (:inv_nr, :customer_id, :time)"
+        )
+        query.bindValue(":inv_nr", nr)
+        query.bindValue(":customer_id", customer_id)
         return False
     def checkout(self, nr, customer_id):
         return False

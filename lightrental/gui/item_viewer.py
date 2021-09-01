@@ -4,7 +4,6 @@ from PyQt5.QtWidgets import (
     QLabel, 
     QVBoxLayout, 
     QHBoxLayout,
-    QPixmap,
 )
 from PyQt5.QtGui import QPixmap
 
